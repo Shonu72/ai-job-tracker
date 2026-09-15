@@ -1,59 +1,132 @@
-# AI Job Application Tracker
+# AI Job Application Tracker — Google Cloud Code Kitchen
 
-Built for AIM Code Kitchen Season 01 (presented by Google Cloud).
+A smart, data-driven career optimization pipeline and application tracking dashboard built for **Google Cloud AIM Code Kitchen Season 01**.
 
-A career-optimization pipeline and application tracking dashboard:
-authenticated users log job applications, get AI-drafted (Gemini) cover
-letters and follow-up emails grounded in the job posting and their own past
-drafts, track status transitions through a full audit trail (Applied →
-Interview → Offer/Reject), and get scheduled nudges when an application has
-gone quiet.
+![AI Job Application Tracker Banner](https://img.shields.io/badge/Google%20Cloud-Vertex%20AI%20Gemini%202.5%20Flash-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/Cloud%20SQL-PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-14-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)
 
-## Structure
+---
 
-- `backend/` — Node.js + Express + PostgreSQL API. See `backend/README.md`
-  for setup, the ingestion pipeline (matches the evaluation dataset schema
-  exactly), and full endpoint docs.
-- `frontend/` — Next.js dashboard: kanban board of applications, per-application
-  drafts, one-click AI generation, status transitions.
-- `docker-compose.yml` — spins up a local Postgres instance for development.
+## 🌟 Key Features
 
-## Quick start
+1. **Grounded AI Generation (Vertex AI Gemini 2.5 Flash)**:
+   - Uses `@google/genai` SDK with **Application Default Credentials (ADC)** — zero API keys required.
+   - Generates contextual Cover Letters and Follow-Up Emails dynamically grounded in target job requirements and candidate past drafts.
 
-```bash
-# 1. Database
-docker compose up -d
+2. **Bulk Evaluation Dataset Ingestion Pipeline**:
+   - High-throughput idempotent ingestion endpoints matching the evaluation schemas:
+     - **Job Postings**: `<id>, <from>, <to>, <type>, <description>` via `POST /api/ingest/jobs`
+     - **Drafts & Emails**: `<id>, <jobId>, <type>, <contents>, <status>` via `POST /api/ingest/drafts`
+   - Uses PostgreSQL `ON CONFLICT (external_id) DO UPDATE` to ensure safe, scalable, loss-less upserts.
 
-# 2. Backend
-cd backend
-npm install
-cp .env.example .env        # set GEMINI_API_KEY and JWT_SECRET
-npm run migrate
-npm start                    # http://localhost:4000
+3. **Persistent Pipeline State Machine & Audit History**:
+   - Manages application stages (`Applied` → `Interview` → `Offer` → `Reject`).
+   - Every transition writes an auditable record to `application_events` with timestamps and optional notes.
 
-# 3. Frontend (new terminal)
-cd frontend
-npm install
-cp .env.local.example .env.local
-npm run dev                  # http://localhost:3000
+4. **Automated Follow-Up Nudges**:
+   - Nudge engine (`POST /api/nudges/run`) identifies stale applications (`Applied` > 7d / `Interview` > 14d) for Cloud Scheduler automation.
+
+5. **Modern Glassmorphism UI Dashboard**:
+   - Next.js 14 Kanban board with live metric cards, copy-to-clipboard, status stepper, and a **1-click "Ingest Demo Dataset"** evaluator tool.
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 Next.js Glassmorphism UI                    │
+│  • Dashboard Kanban Board   • Grounded AI Draft Suite       │
+│  • Status Transition Notes  • Evaluation Dataset Ingest     │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ REST API (JWT Auth)
+┌──────────────────────────────▼──────────────────────────────┐
+│                  Node.js + Express API                      │
+│  • Auth Middleware (JWT)    • Helmet Security & CORS        │
+│  • Bulk Ingestion Service   • Audit Event Logger            │
+└──────────────┬──────────────────────────────┬───────────────┘
+               │                              │
+┌──────────────▼──────────────┐ ┌─────────────▼───────────────┐
+│   Cloud SQL PostgreSQL      │ │     Google Cloud Vertex AI    │
+│ (job_tracker database on    │ │     Gemini 2.5 Flash SDK     │
+│ instance 'sonushourya')     │ │ (Authenticated via GCP ADC) │
+└─────────────────────────────┘ └─────────────────────────────┘
 ```
 
-Sign up in the UI, then use `backend/README.md`'s curl examples to bulk-ingest
-the evaluation dataset (job postings + drafts) against your account's token.
+---
 
-## Why this design
+## 🚀 Quick Start
 
-- **Idempotent ingestion**: both `/api/ingest/jobs` and `/api/ingest/drafts`
-  upsert on the dataset's own `<id>`, so partial retries or re-runs during
-  evaluation never duplicate rows, and drafts are linked to postings via
-  `jobId` exactly as specified.
-- **Real state machine, not just a status column**: every transition is
-  written to `application_events`, so the full pipeline history is queryable
-  and auditable, not just the current snapshot.
-- **Grounded generation, not generic output**: before calling Gemini, the
-  backend pulls the specific job posting plus the user's own recent drafts of
-  the same type, so new letters/emails stay consistent with past ones and
-  reference the actual role.
-- **Nudges are real artifacts, not just reminders**: the scheduler doesn't
-  just notify — it drafts the actual follow-up email via Gemini and logs it
-  as a `nudge` tied to a `draft`, so the user can review and send with one click.
+### 1. Database Setup
+Ensure PostgreSQL is running locally or set your GCP Cloud SQL connection parameters in `backend/.env`:
+
+```env
+PORT=4000
+DB_HOST=34.45.62.149
+DB_PORT=5432
+DB_NAME=job_tracker
+DB_USER=postgres
+DB_PASSWORD=YOUR_PASSWORD
+JWT_SECRET=ck-s01-job-tracker-jwt-2026-secret-key
+GCP_PROJECT_ID=qwiklabs-gcp-02-487c653354db
+GCP_REGION=us-central1
+GEMINI_MODEL=gemini-2.5-flash
+```
+
+### 2. Backend Setup
+```bash
+cd backend
+npm install
+npm run migrate    # Applies database schema
+npm start          # Starts server on http://localhost:4000
+```
+
+### 3. Frontend Setup
+```bash
+cd frontend
+npm install
+npm run dev        # Starts Next.js app on http://localhost:3000
+```
+
+---
+
+## 🧪 Evaluation Dataset Ingestion API Docs
+
+### Ingest Job Postings (`POST /api/ingest/jobs`)
+```json
+[
+  {
+    "id": "1",
+    "from": "2026-06-01",
+    "to": "2026-06-30",
+    "type": "full-time",
+    "description": "Senior Backend Engineer - Python, Bengaluru"
+  }
+]
+```
+
+### Ingest Drafts (`POST /api/ingest/drafts`)
+```json
+[
+  {
+    "id": "1",
+    "jobId": "1",
+    "type": "cover_letter",
+    "contents": "Dear Hiring Manager - I'm applying for...",
+    "status": "draft"
+  }
+]
+```
+
+---
+
+## 🧪 Integration Test Suite
+
+Run the full end-to-end integration test suite:
+
+```bash
+./test-pipeline.sh
+# Runs 20 automated assertions covering Auth, Ingestion, Applications, Gemini Generation, and Nudges.
+```

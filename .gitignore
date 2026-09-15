@@ -4,3 +4,7 @@ node_modules/
 .next/
 dist/
 *.log
+.DS_Store
+*.pem
+application_default_credentials.json
+key.json
